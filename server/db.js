@@ -350,15 +350,15 @@ export const db = {
   addTransaction: async (tx) => {
     if (USE_PG) {
       const r = (await query(
-        `INSERT INTO transactions (item_id,type,quantity,user_id,user_name,reason,notes,destination) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-        [tx.itemId, tx.type, tx.quantity, tx.userId||null, tx.userName||null, tx.reason||null, tx.notes||null, tx.destination||null]
+        `INSERT INTO transactions (item_id,type,quantity,user_id,user_name,reason,notes,destination,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [tx.itemId, tx.type, tx.quantity, tx.userId||null, tx.userName||null, tx.reason||null, tx.notes||null, tx.destination||null, tx.createdAt || new Date()]
       ))[0];
       const delta = tx.type === 'in' ? tx.quantity : -tx.quantity;
       await query('UPDATE items SET stock=stock+$1, updated_at=NOW() WHERE id=$2', [delta, tx.itemId]);
       return toTx(r);
     }
     const txs = readJson('transactions.json');
-    const n = { ...tx, id: nextId(txs), createdAt: new Date().toISOString() };
+    const n = { ...tx, id: nextId(txs), createdAt: tx.createdAt || new Date().toISOString() };
     txs.push(n); writeJson('transactions.json', txs);
     const items = readJson('items.json'); const i = items.findIndex(x => x.id === tx.itemId);
     if (i !== -1) { items[i].stock = (items[i].stock || 0) + (tx.type === 'in' ? tx.quantity : -tx.quantity); writeJson('items.json', items); }

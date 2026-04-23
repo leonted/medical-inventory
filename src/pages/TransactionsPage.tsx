@@ -18,6 +18,7 @@ export default function TransactionsPage() {
   const [notes, setNotes] = useState('');
   const [destination, setDestination] = useState('');
   const [destCustom, setDestCustom] = useState('');
+  const [txDate, setTxDate] = useState(() => new Date().toISOString().slice(0, 16));
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -40,7 +41,7 @@ export default function TransactionsPage() {
     setSaving(true);
     try {
       const resolvedDest = type === 'out' ? (destination === '__custom__' ? destCustom : destination) : undefined;
-      await api.addTransaction({ itemId: selectedItem.id, type, quantity: Number(quantity), reason: reason || 'その他', notes, destination: resolvedDest });
+      await api.addTransaction({ itemId: selectedItem.id, type, quantity: Number(quantity), reason: reason || 'その他', notes, destination: resolvedDest, createdAt: new Date(txDate).toISOString() });
       toast.success(`${type === 'in' ? '入庫' : '出庫'}を記録しました`);
       const updated = await api.getItem(selectedItem.id);
       setSelectedItem(updated);
@@ -50,6 +51,7 @@ export default function TransactionsPage() {
       setReason('');
       setDestination('');
       setDestCustom('');
+      setTxDate(new Date().toISOString().slice(0, 16));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '記録に失敗しました');
     } finally {
@@ -117,6 +119,18 @@ export default function TransactionsPage() {
                     <X className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="label">日時</label>
+                <input
+                  type="datetime-local"
+                  className="input"
+                  value={txDate}
+                  max={new Date().toISOString().slice(0, 16)}
+                  onChange={e => setTxDate(e.target.value)}
+                />
               </div>
 
               {/* Type */}
