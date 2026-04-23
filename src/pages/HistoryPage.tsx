@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { Transaction } from '../types';
-import { Search, TrendingUp, TrendingDown, Download, UserCircle } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Download, UserCircle, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function HistoryPage() {
   const [txs, setTxs] = useState<Transaction[]>([]);
@@ -22,6 +23,13 @@ export default function HistoryPage() {
   };
 
   useEffect(() => { load(); }, [search, typeFilter, from, to]);
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('この履歴を削除しますか？')) return;
+    await api.deleteTransaction(id);
+    toast.success('削除しました');
+    load();
+  };
 
   const exportCSV = () => {
     const header = 'ID,日時,品名,種別,数量,単位,担当者,理由,出庫場所,備考';
@@ -77,6 +85,7 @@ export default function HistoryPage() {
                 <th className="text-left px-4 py-3 text-gray-500 font-medium">理由</th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium hidden md:table-cell">出庫場所</th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium hidden lg:table-cell">備考</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -113,6 +122,11 @@ export default function HistoryPage() {
                   <td className="px-4 py-3 text-gray-600">{tx.reason}</td>
                   <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{tx.destination || '-'}</td>
                   <td className="px-4 py-3 text-gray-400 hidden lg:table-cell">{tx.notes || '-'}</td>
+                  <td className="px-4 py-3">
+                    <button onClick={() => handleDelete(tx.id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

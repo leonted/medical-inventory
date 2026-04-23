@@ -366,6 +366,10 @@ export const db = {
     if (i !== -1) { items[i].stock = (items[i].stock || 0) + (tx.type === 'in' ? tx.quantity : -tx.quantity); writeJson('items.json', items); }
     return n;
   },
+  deleteTransaction: async (id) => {
+    if (USE_PG) { await query('DELETE FROM transactions WHERE id=$1', [id]); return; }
+    writeJson('transactions.json', readJson('transactions.json').filter(x => x.id !== id));
+  },
 
   // Stocktakes
   getStocktakes: async () => {

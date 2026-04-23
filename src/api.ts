@@ -58,6 +58,7 @@ export const api = {
     return req('GET', `/transactions${q}`);
   },
   addTransaction: (d: unknown) => req('POST', '/transactions', d),
+  deleteTransaction: (id: number) => req('DELETE', `/transactions/${id}`),
 
   // Stocktakes
   getStocktakes: () => req('GET', '/stocktakes'),

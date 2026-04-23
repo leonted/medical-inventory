@@ -201,6 +201,13 @@ app.post('/api/transactions', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.delete('/api/transactions/:id', auth, async (req, res) => {
+  try {
+    await db.deleteTransaction(Number(req.params.id));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Stocktakes ───────────────────────────────────────
 app.get('/api/stocktakes', auth, async (req, res) => res.json(await db.getStocktakes()));
 
