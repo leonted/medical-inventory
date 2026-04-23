@@ -81,6 +81,11 @@ export async function initSchema() {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       closed_at TIMESTAMPTZ
     );
+    CREATE TABLE IF NOT EXISTS destinations (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
   // 既存テーブルへの列追加（マイグレーション）
   await query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS destination TEXT`);
@@ -135,6 +140,27 @@ export async function seedIfEmpty(bcrypt) {
     );
   }
   console.log('DB seeded successfully');
+}
+
+// 出庫場所の初期データ（destinationsテーブルが空の場合のみ投入）
+export async function seedDestinations() {
+  if (!USE_PG) return;
+  const existing = await query('SELECT COUNT(*) FROM destinations');
+  if (Number(existing[0].count) > 0) return;
+  const defaults = [
+    '茨城県 つくばみらい','茨城県 かすみがうら','茨城県 つくば','茨城県 いばらき','茨城県 ひたち',
+    '千葉県 なりた','千葉県 のだ','千葉県 かとり','千葉県 やちよ','千葉県 あびこ',
+    '埼玉県 あさか','埼玉県 かわごえ','埼玉県 かすかべ',
+    '東京都 あだち','東京都 せたがや','東京都 まちだ','東京都 すぎなみ','東京都 えどがわ','東京都 にしとうきょう',
+    '神奈川県 あつぎ','神奈川県 よこはま','神奈川県 よこすか','神奈川県 かわさき','神奈川県 ひらつか','神奈川県 ふじさわ',
+    '栃木県 うつのみや','栃木県 もおか','栃木県 とちぎ','栃木県 しおや',
+    '静岡県 ぬまづ',
+    '愛知県 なごや','愛知県 みよし','愛知県 きよす',
+    '新潟県 いといがわ','新潟県 にいがた','新潟県 ながおか','新潟県 じょうえつ',
+  ];
+  for (const name of defaults) {
+    await query('INSERT INTO destinations (name) VALUES ($1)', [name]);
+  }
 }
 
 // ── ヘルパー: スネークケース→キャメルケース変換 ──
@@ -225,6 +251,24 @@ export const db = {
   deleteLocation: async (id) => {
     if (USE_PG) { await query('DELETE FROM locations WHERE id=$1', [id]); return; }
     writeJson('locations.json', readJson('locations.json').filter(x => x.id !== id));
+  },
+
+  // Destinations
+  getDestinations: async () => {
+    if (USE_PG) return await query('SELECT * FROM destinations ORDER BY id');
+    return readJson('destinations.json');
+  },
+  addDestination: async (d) => {
+    if (USE_PG) return (await query('INSERT INTO destinations (name) VALUES ($1) RETURNING *', [d.name]))[0];
+    const list = readJson('destinations.json'); const n = { ...d, id: nextId(list) }; list.push(n); writeJson('destinations.json', list); return n;
+  },
+  updateDestination: async (id, d) => {
+    if (USE_PG) return (await query('UPDATE destinations SET name=$1 WHERE id=$2 RETURNING *', [d.name, id]))[0];
+    const list = readJson('destinations.json'); const i = list.findIndex(x => x.id === id); if (i === -1) return null; list[i] = { ...list[i], ...d }; writeJson('destinations.json', list); return list[i];
+  },
+  deleteDestination: async (id) => {
+    if (USE_PG) { await query('DELETE FROM destinations WHERE id=$1', [id]); return; }
+    writeJson('destinations.json', readJson('destinations.json').filter(x => x.id !== id));
   },
 
   // Items

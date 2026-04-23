@@ -215,6 +215,97 @@ function LocationSection() {
   );
 }
 
+function DestinationSection() {
+  const [list, setList] = useState<{ id: number; name: string }[]>([]);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState('');
+
+  const load = () => api.getDestinations().then(setList);
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async () => {
+    if (!form.trim()) return;
+    try {
+      await api.addDestination({ name: form.trim() });
+      setForm('');
+      setAdding(false);
+      toast.success('出庫場所を追加しました');
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '追加に失敗しました');
+    }
+  };
+
+  const handleUpdate = async (id: number) => {
+    if (!editName.trim()) return;
+    await api.updateDestination(id, { name: editName.trim() });
+    setEditId(null);
+    toast.success('更新しました');
+    load();
+  };
+
+  const handleDelete = async (id: number, name: string) => {
+    if (!confirm(`「${name}」を削除しますか？`)) return;
+    await api.deleteDestination(id);
+    toast.success('削除しました');
+    load();
+  };
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <MapPin className="w-5 h-5 text-orange-500" />
+          <h2 className="font-semibold text-gray-700">出庫場所</h2>
+        </div>
+        <button onClick={() => setAdding(true)} className="btn-primary text-sm flex items-center gap-1 py-1.5">
+          <Plus className="w-4 h-4" /> 追加
+        </button>
+      </div>
+
+      {adding && (
+        <div className="mb-4 p-4 bg-orange-50 rounded-lg space-y-3">
+          <input
+            className="input"
+            placeholder="例: 茨城県 つくば"
+            value={form}
+            onChange={e => setForm(e.target.value)}
+            autoFocus
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          />
+          <div className="flex gap-2">
+            <button onClick={() => setAdding(false)} className="btn-secondary text-sm flex-1">キャンセル</button>
+            <button onClick={handleAdd} className="btn-primary text-sm flex-1">追加する</button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {list.map(d => (
+          <div key={d.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg">
+            {editId === d.id ? (
+              <div className="flex-1 flex gap-2">
+                <input className="input text-sm flex-1" value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleUpdate(d.id)} autoFocus />
+                <button onClick={() => setEditId(null)} className="p-1 text-gray-400"><X className="w-4 h-4" /></button>
+                <button onClick={() => handleUpdate(d.id)} className="p-1 text-green-600"><Check className="w-4 h-4" /></button>
+              </div>
+            ) : (
+              <>
+                <MapPin className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                <span className="text-sm text-gray-800 flex-1">{d.name}</span>
+                <button onClick={() => { setEditId(d.id); setEditName(d.name); }} className="p-1 text-gray-400 hover:text-blue-600"><Edit2 className="w-4 h-4" /></button>
+                <button onClick={() => handleDelete(d.id, d.name)} className="p-1 text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function UserSection() {
   const [users, setUsers] = useState<{ id: number; name: string; username: string; role: string }[]>([]);
   const [adding, setAdding] = useState(false);
@@ -302,7 +393,7 @@ function UserSection() {
 export default function MasterPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const tabs = isAdmin ? ['カテゴリ', '保管場所', 'ユーザー管理'] : ['カテゴリ', '保管場所'];
+  const tabs = isAdmin ? ['カテゴリ', '保管場所', '出庫場所', 'ユーザー管理'] : ['カテゴリ', '保管場所', '出庫場所'];
   const [tab, setTab] = useState(0);
 
   return (
@@ -320,7 +411,8 @@ export default function MasterPage() {
 
       {tab === 0 && <CategorySection />}
       {tab === 1 && <LocationSection />}
-      {tab === 2 && isAdmin && <UserSection />}
+      {tab === 2 && <DestinationSection />}
+      {tab === 3 && isAdmin && <UserSection />}
     </div>
   );
 }

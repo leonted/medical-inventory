@@ -7,7 +7,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import qrcode from 'qrcode';
-import { db, initSchema, seedIfEmpty } from './db.js';
+import { db, initSchema, seedIfEmpty, seedDestinations } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JWT_SECRET = process.env.JWT_SECRET || 'medical-inventory-secret-2024';
@@ -18,6 +18,7 @@ const IS_PROD = process.env.NODE_ENV === 'production' || !!process.env.DATABASE_
 try {
   await initSchema();
   await seedIfEmpty(bcrypt);
+  await seedDestinations();
 } catch (e) {
   console.error('DB init error:', e.message);
 }
@@ -96,6 +97,18 @@ app.put('/api/locations/:id', auth, async (req, res) => {
 });
 app.delete('/api/locations/:id', auth, async (req, res) => {
   await db.deleteLocation(Number(req.params.id));
+  res.json({ ok: true });
+});
+
+// ── Destinations ─────────────────────────────────────
+app.get('/api/destinations', auth, async (req, res) => res.json(await db.getDestinations()));
+app.post('/api/destinations', auth, async (req, res) => res.json(await db.addDestination(req.body)));
+app.put('/api/destinations/:id', auth, async (req, res) => {
+  const r = await db.updateDestination(Number(req.params.id), req.body);
+  r ? res.json(r) : res.status(404).json({ error: 'Not found' });
+});
+app.delete('/api/destinations/:id', auth, async (req, res) => {
+  await db.deleteDestination(Number(req.params.id));
   res.json({ ok: true });
 });
 

@@ -65,6 +65,12 @@ export const api = {
   updateStocktake: (id: number, d: unknown) => req('PUT', `/stocktakes/${id}`, d),
   adjustStocktake: (id: number, entryIndexes: number[]) => req('POST', `/stocktakes/${id}/adjust`, { entryIndexes }),
 
+  // Destinations
+  getDestinations: () => req('GET', '/destinations'),
+  addDestination: (d: unknown) => req('POST', '/destinations', d),
+  updateDestination: (id: number, d: unknown) => req('PUT', `/destinations/${id}`, d),
+  deleteDestination: (id: number) => req('DELETE', `/destinations/${id}`),
+
   // Users
   getUsers: () => req('GET', '/users'),
   addUser: (d: unknown) => req('POST', '/users', d),
