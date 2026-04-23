@@ -68,4 +68,7 @@ export const api = {
   // Users
   getUsers: () => req('GET', '/users'),
   addUser: (d: unknown) => req('POST', '/users', d),
+  deleteUser: (id: number) => req('DELETE', `/users/${id}`),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    req('POST', '/auth/change-password', { currentPassword, newPassword }),
 };

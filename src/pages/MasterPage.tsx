@@ -3,6 +3,7 @@ import { api } from '../api';
 import type { Category, Location } from '../types';
 import { Plus, Edit2, Trash2, X, Check, Tag, MapPin, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuth } from '../hooks/useAuth';
 
 const COLORS = ['#2563eb','#16a34a','#7c3aed','#ea580c','#0891b2','#65a30d','#dc2626','#d97706','#9333ea','#0f766e'];
 const ICONS = ['💉','🩺','💊','🩹','🔬','🧤','🧪','📦','🌡️','🩻','🩼','⚕️'];
@@ -214,8 +215,94 @@ function LocationSection() {
   );
 }
 
+function UserSection() {
+  const [users, setUsers] = useState<{ id: number; name: string; username: string; role: string }[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ name: '', username: '', password: '', role: 'staff' });
+  const { user: me } = useAuth();
+
+  const load = () => api.getUsers().then(setUsers);
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async () => {
+    if (!form.name || !form.username || !form.password) return toast.error('すべての項目を入力してください');
+    try {
+      await api.addUser(form);
+      setForm({ name: '', username: '', password: '', role: 'staff' });
+      setAdding(false);
+      toast.success('ユーザーを追加しました');
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '追加に失敗しました');
+    }
+  };
+
+  const handleDelete = async (id: number, name: string) => {
+    if (id === me?.id) return toast.error('自分自身は削除できません');
+    if (!confirm(`「${name}」を削除しますか？`)) return;
+    try {
+      await api.deleteUser(id);
+      toast.success('削除しました');
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '削除に失敗しました');
+    }
+  };
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Users className="w-5 h-5 text-purple-600" />
+          <h2 className="font-semibold text-gray-700">ユーザー管理</h2>
+        </div>
+        <button onClick={() => setAdding(true)} className="btn-primary text-sm flex items-center gap-1 py-1.5">
+          <Plus className="w-4 h-4" /> 追加
+        </button>
+      </div>
+
+      {adding && (
+        <div className="mb-4 p-4 bg-purple-50 rounded-lg space-y-3">
+          <input className="input" placeholder="表示名（例: 山田 花子）" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} autoFocus />
+          <input className="input" placeholder="ユーザーID（例: hanako）" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} />
+          <input type="password" className="input" placeholder="パスワード（6文字以上）" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+          <select className="input" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+            <option value="staff">スタッフ</option>
+            <option value="admin">管理者</option>
+          </select>
+          <div className="flex gap-2">
+            <button onClick={() => setAdding(false)} className="btn-secondary text-sm flex-1">キャンセル</button>
+            <button onClick={handleAdd} className="btn-primary text-sm flex-1">追加する</button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {users.map(u => (
+          <div key={u.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg">
+            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-bold text-sm flex-shrink-0">
+              {u.name.charAt(0)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800">{u.name}</p>
+              <p className="text-xs text-gray-400">@{u.username} · {u.role === 'admin' ? '管理者' : 'スタッフ'}</p>
+            </div>
+            {u.id !== me?.id && (
+              <button onClick={() => handleDelete(u.id, u.name)} className="p-1 text-gray-400 hover:text-red-600">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function MasterPage() {
-  const tabs = ['カテゴリ', '保管場所'];
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const tabs = isAdmin ? ['カテゴリ', '保管場所', 'ユーザー管理'] : ['カテゴリ', '保管場所'];
   const [tab, setTab] = useState(0);
 
   return (
@@ -233,6 +320,7 @@ export default function MasterPage() {
 
       {tab === 0 && <CategorySection />}
       {tab === 1 && <LocationSection />}
+      {tab === 2 && isAdmin && <UserSection />}
     </div>
   );
 }

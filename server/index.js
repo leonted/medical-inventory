@@ -293,6 +293,51 @@ app.post('/api/users', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// パスワード変更
+app.post('/api/auth/change-password', auth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const users = await db.getUsers();
+    const user = users.find(u => u.id === req.user.id);
+    if (!user) return res.status(404).json({ error: 'ユーザーが見つかりません' });
+    if (!bcrypt.compareSync(currentPassword, user.password)) {
+      return res.status(400).json({ error: '現在のパスワードが違います' });
+    }
+    if (newPassword.length < 6) return res.status(400).json({ error: 'パスワードは6文字以上にしてください' });
+    const hashed = bcrypt.hashSync(newPassword, 10);
+    // update password
+    if (process.env.DATABASE_URL) {
+      const { Pool } = await import('pg').then(m => m.default);
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await pool.query('UPDATE users SET password=$1 WHERE id=$2', [hashed, req.user.id]);
+      await pool.end();
+    } else {
+      const allUsers = await db.getUsers();
+      const idx = allUsers.findIndex(u => u.id === req.user.id);
+      if (idx !== -1) { allUsers[idx].password = hashed; await db.saveUsers(allUsers); }
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ユーザー削除（管理者のみ）
+app.delete('/api/users/:id', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: '権限がありません' });
+    if (Number(req.params.id) === req.user.id) return res.status(400).json({ error: '自分自身は削除できません' });
+    if (process.env.DATABASE_URL) {
+      const { Pool } = await import('pg').then(m => m.default);
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await pool.query('DELETE FROM users WHERE id=$1', [Number(req.params.id)]);
+      await pool.end();
+    } else {
+      const users = await db.getUsers();
+      await db.saveUsers(users.filter(u => u.id !== Number(req.params.id)));
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── 本番用: Viteのビルドファイルを配信 ──────────────
 if (IS_PROD) {
   const distPath = path.join(__dirname, '../dist');
