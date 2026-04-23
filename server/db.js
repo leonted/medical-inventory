@@ -314,7 +314,7 @@ export const db = {
       const fields = [], params = [];
       const map = { name:'name', categoryId:'category_id', locationId:'location_id', stock:'stock', minStock:'min_stock', unit:'unit', lotNumber:'lot_number', expiryDate:'expiry_date', manufacturer:'manufacturer', price:'price', image:'image', notes:'notes', isActive:'is_active' };
       for (const [k, col] of Object.entries(map)) {
-        if (item[k] !== undefined) { params.push(item[k] || null); fields.push(`${col}=$${params.length}`); }
+        if (item[k] !== undefined) { params.push(item[k] ?? null); fields.push(`${col}=$${params.length}`); }
       }
       if (!fields.length) return db.getItem(id);
       params.push(id); fields.push(`updated_at=NOW()`);
