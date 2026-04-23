@@ -131,8 +131,8 @@ app.post('/api/items', auth, upload.single('image'), async (req, res) => {
     if (req.file) data.image = `/uploads/${req.file.filename}`;
     if (data.categoryId) data.categoryId = Number(data.categoryId);
     if (data.locationId) data.locationId = Number(data.locationId);
-    if (data.stock) data.stock = Number(data.stock);
-    if (data.minStock) data.minStock = Number(data.minStock);
+    data.stock = data.stock !== undefined && data.stock !== '' ? Number(data.stock) : 0;
+    data.minStock = data.minStock !== undefined && data.minStock !== '' ? Number(data.minStock) : 0;
     if (data.price) data.price = Number(data.price);
     res.json(await db.addItem(data));
   } catch (e) { res.status(500).json({ error: e.message }); }
