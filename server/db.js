@@ -56,6 +56,7 @@ export async function initSchema() {
       price NUMERIC,
       image TEXT,
       notes TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ
     );
@@ -89,6 +90,7 @@ export async function initSchema() {
   `);
   // 既存テーブルへの列追加（マイグレーション）
   await query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS destination TEXT`);
+  await query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
 }
 
 // ── シード（初回のみ） ────────────────────────────
@@ -171,7 +173,7 @@ function toItem(r) {
     stock: Number(r.stock), minStock: Number(r.min_stock), unit: r.unit,
     lotNumber: r.lot_number, expiryDate: r.expiry_date?.toISOString?.()?.split('T')[0] ?? r.expiry_date,
     manufacturer: r.manufacturer, price: r.price ? Number(r.price) : null,
-    image: r.image, notes: r.notes,
+    image: r.image, notes: r.notes, isActive: r.is_active !== false,
     createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
@@ -295,11 +297,11 @@ export const db = {
   addItem: async (item) => {
     if (USE_PG) {
       const r = (await query(
-        `INSERT INTO items (name,category_id,location_id,stock,min_stock,unit,lot_number,expiry_date,manufacturer,price,image,notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        `INSERT INTO items (name,category_id,location_id,stock,min_stock,unit,lot_number,expiry_date,manufacturer,price,image,notes,is_active)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
         [item.name, item.categoryId||null, item.locationId||null, item.stock||0, item.minStock||10,
          item.unit||'個', item.lotNumber||null, item.expiryDate||null, item.manufacturer||null,
-         item.price||null, item.image||null, item.notes||null]
+         item.price||null, item.image||null, item.notes||null, item.isActive !== false]
       ))[0];
       return toItem(r);
     }
@@ -310,7 +312,7 @@ export const db = {
   updateItem: async (id, item) => {
     if (USE_PG) {
       const fields = [], params = [];
-      const map = { name:'name', categoryId:'category_id', locationId:'location_id', stock:'stock', minStock:'min_stock', unit:'unit', lotNumber:'lot_number', expiryDate:'expiry_date', manufacturer:'manufacturer', price:'price', image:'image', notes:'notes' };
+      const map = { name:'name', categoryId:'category_id', locationId:'location_id', stock:'stock', minStock:'min_stock', unit:'unit', lotNumber:'lot_number', expiryDate:'expiry_date', manufacturer:'manufacturer', price:'price', image:'image', notes:'notes', isActive:'is_active' };
       for (const [k, col] of Object.entries(map)) {
         if (item[k] !== undefined) { params.push(item[k] || null); fields.push(`${col}=$${params.length}`); }
       }

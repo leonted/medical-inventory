@@ -32,6 +32,7 @@ export interface Item {
   price?: number;
   image?: string;
   notes?: string;
+  isActive: boolean;
   createdAt: string;
   updatedAt?: string;
 }

@@ -4,7 +4,7 @@ import type { Item, Category, Location } from '../types';
 import { Plus, Search, Filter, QrCode, Edit2, Trash2, X, Upload, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const EMPTY_FORM = { name: '', categoryId: '', locationId: '', stock: '', minStock: '10', unit: '個', lotNumber: '', expiryDate: '', manufacturer: '', price: '', notes: '' };
+const EMPTY_FORM = { name: '', categoryId: '', locationId: '', stock: '', minStock: '10', unit: '個', lotNumber: '', expiryDate: '', manufacturer: '', price: '', notes: '', isActive: 'true' };
 
 function QRModal({ item, onClose }: { item: Item; onClose: () => void }) {
   const [qr, setQr] = useState<string>('');
@@ -37,6 +37,7 @@ function ItemModal({ item, categories, locations, onClose, onSaved }: {
     stock: String(item.stock), minStock: String(item.minStock), unit: item.unit,
     lotNumber: item.lotNumber || '', expiryDate: item.expiryDate || '',
     manufacturer: item.manufacturer || '', price: String(item.price || ''), notes: item.notes || '',
+    isActive: String(item.isActive !== false),
   } : EMPTY_FORM);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -127,6 +128,19 @@ function ItemModal({ item, categories, locations, onClose, onSaved }: {
             <label className="label">備考</label>
             <textarea className="input" rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} />
           </div>
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div>
+              <p className="text-sm font-medium text-gray-700">季節外（シーズン外）</p>
+              <p className="text-xs text-gray-400">オンにすると在庫アラートから除外されます</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => set('isActive', form.isActive === 'true' ? 'false' : 'true')}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.isActive === 'false' ? 'bg-gray-300' : 'bg-blue-600'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.isActive === 'false' ? 'translate-x-1' : 'translate-x-6'}`} />
+            </button>
+          </div>
           <div>
             <label className="label">画像</label>
             <label className="flex items-center gap-2 cursor-pointer border border-dashed border-gray-300 rounded-lg p-3 hover:bg-gray-50">
@@ -152,6 +166,7 @@ export default function ItemsPage() {
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('');
   const [locFilter, setLocFilter] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
   const [editItem, setEditItem] = useState<Item | null | undefined>(undefined);
   const [qrItem, setQrItem] = useState<Item | null>(null);
 
@@ -180,7 +195,8 @@ export default function ItemsPage() {
   const getCat = (id: number) => categories.find(c => c.id === id);
   const getLoc = (id: number) => locations.find(l => l.id === id);
 
-  const isLow = (item: Item) => item.stock <= item.minStock;
+  const isLow = (item: Item) => item.isActive !== false && item.stock <= item.minStock;
+  const displayed = items.filter(i => showInactive ? i.isActive === false : i.isActive !== false);
 
   return (
     <div className="space-y-4">
@@ -205,18 +221,24 @@ export default function ItemsPage() {
           <option value="">すべての場所</option>
           {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
+        <button
+          onClick={() => setShowInactive(v => !v)}
+          className={`text-sm px-3 py-2 rounded-lg border transition-colors whitespace-nowrap ${showInactive ? 'bg-gray-200 text-gray-700 border-gray-300' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+        >
+          {showInactive ? '通常表示に戻す' : '季節外を表示'}
+        </button>
       </div>
 
-      <p className="text-sm text-gray-500">{items.length}件の資材</p>
+      <p className="text-sm text-gray-500">{displayed.length}件の資材{showInactive ? '（季節外）' : ''}</p>
 
       {/* Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {items.map(item => {
+        {displayed.map(item => {
           const cat = getCat(item.categoryId);
           const loc = getLoc(item.locationId);
           const low = isLow(item);
           return (
-            <div key={item.id} className={`bg-white rounded-xl border ${low ? 'border-orange-200' : 'border-gray-100'} shadow-sm overflow-hidden hover:shadow-md transition-shadow`}>
+            <div key={item.id} className={`bg-white rounded-xl border ${item.isActive === false ? 'border-gray-200 opacity-60' : low ? 'border-orange-200' : 'border-gray-100'} shadow-sm overflow-hidden hover:shadow-md transition-shadow`}>
               {/* Image */}
               <div className="aspect-video bg-gray-50 flex items-center justify-center relative">
                 {item.image ? (
@@ -224,7 +246,12 @@ export default function ItemsPage() {
                 ) : (
                   <span className="text-4xl">{cat?.icon || '📦'}</span>
                 )}
-                {low && (
+                {item.isActive === false && (
+                  <div className="absolute top-2 left-2">
+                    <span className="text-xs bg-gray-500 text-white px-1.5 py-0.5 rounded-full">季節外</span>
+                  </div>
+                )}
+                {low && item.isActive !== false && (
                   <div className="absolute top-2 right-2">
                     <AlertTriangle className="w-4 h-4 text-orange-500" />
                   </div>

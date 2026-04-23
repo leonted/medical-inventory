@@ -134,6 +134,7 @@ app.post('/api/items', auth, upload.single('image'), async (req, res) => {
     data.stock = data.stock !== undefined && data.stock !== '' ? Number(data.stock) : 0;
     data.minStock = data.minStock !== undefined && data.minStock !== '' ? Number(data.minStock) : 0;
     if (data.price) data.price = Number(data.price);
+    data.isActive = data.isActive !== 'false' && data.isActive !== false;
     res.json(await db.addItem(data));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -147,6 +148,7 @@ app.put('/api/items/:id', auth, upload.single('image'), async (req, res) => {
     if (data.stock !== undefined) data.stock = Number(data.stock);
     if (data.minStock !== undefined) data.minStock = Number(data.minStock);
     if (data.price !== undefined) data.price = Number(data.price);
+    if (data.isActive !== undefined) data.isActive = data.isActive !== 'false' && data.isActive !== false;
     const r = await db.updateItem(Number(req.params.id), data);
     r ? res.json(r) : res.status(404).json({ error: 'Not found' });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -261,10 +263,11 @@ app.get('/api/dashboard', auth, async (req, res) => {
     const [items, txs, categories] = await Promise.all([
       db.getItems(), db.getTransactions(), db.getCategories(),
     ]);
-    const lowStock = items.filter(i => i.stock <= i.minStock);
+    const activeItems = items.filter(i => i.isActive !== false);
+    const lowStock = activeItems.filter(i => i.stock <= i.minStock);
     const now = new Date();
     const in90 = new Date(now.getTime() + 90 * 86400000).toISOString().split('T')[0];
-    const expiryWarnings = items.filter(i => i.expiryDate && i.expiryDate <= in90 && i.stock > 0);
+    const expiryWarnings = activeItems.filter(i => i.expiryDate && i.expiryDate <= in90 && i.stock > 0);
     const categoryBreakdown = categories.map(c => ({
       ...c,
       count: items.filter(i => i.categoryId === c.id).length,
