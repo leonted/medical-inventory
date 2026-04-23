@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { Transaction } from '../types';
-import { Search, TrendingUp, TrendingDown, Download } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Download, UserCircle } from 'lucide-react';
 
 export default function HistoryPage() {
   const [txs, setTxs] = useState<Transaction[]>([]);
@@ -102,7 +102,14 @@ export default function HistoryPage() {
                   <td className={`px-4 py-3 text-right font-bold ${tx.type === 'in' ? 'text-blue-600' : 'text-orange-600'}`}>
                     {tx.type === 'in' ? '+' : '-'}{tx.quantity} {tx.itemUnit}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{tx.userName}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs flex-shrink-0">
+                        {tx.userName?.charAt(0) || '?'}
+                      </div>
+                      <span className="text-gray-800 font-medium text-xs whitespace-nowrap">{tx.userName || '-'}</span>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{tx.reason}</td>
                   <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{tx.destination || '-'}</td>
                   <td className="px-4 py-3 text-gray-400 hidden lg:table-cell">{tx.notes || '-'}</td>
