@@ -15,12 +15,16 @@ const PORT = process.env.PORT || 3001;
 const IS_PROD = process.env.NODE_ENV === 'production' || !!process.env.DATABASE_URL;
 
 // DB初期化（クラウド時）
-await initSchema();
-await seedIfEmpty(bcrypt);
+try {
+  await initSchema();
+  await seedIfEmpty(bcrypt);
+} catch (e) {
+  console.error('DB init error:', e.message);
+}
 
 // ローカル開発時のみJSONシードを実行
 if (!IS_PROD) {
-  await import('./seed.js');
+  try { await import('./seed.js'); } catch (e) {}
 }
 
 const app = express();
