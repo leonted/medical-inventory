@@ -252,9 +252,9 @@ function ItemModal({ item, categories, locations, onClose, onSaved }: {
             <button
               type="button"
               onClick={() => set('isActive', form.isActive === 'true' ? 'false' : 'true')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.isActive === 'false' ? 'bg-gray-300' : 'bg-blue-600'}`}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.isActive === 'false' ? 'bg-blue-600' : 'bg-gray-300'}`}
             >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.isActive === 'false' ? 'translate-x-1' : 'translate-x-6'}`} />
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.isActive === 'false' ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
           </div>
           <div>
