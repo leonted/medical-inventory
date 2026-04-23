@@ -12,7 +12,7 @@ import { db, initSchema, seedIfEmpty } from './db.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JWT_SECRET = process.env.JWT_SECRET || 'medical-inventory-secret-2024';
 const PORT = process.env.PORT || 3001;
-const IS_PROD = !!process.env.DATABASE_URL;
+const IS_PROD = process.env.NODE_ENV === 'production' || !!process.env.DATABASE_URL;
 
 // DB初期化（クラウド時）
 await initSchema();
