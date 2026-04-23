@@ -5,7 +5,7 @@ import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight, X } from 'lucide-react'
 import toast from 'react-hot-toast';
 
 const REASONS_IN = ['定期発注', '補充', '返品入庫', '棚卸調整', 'その他'];
-const REASONS_OUT = ['接種使用', '処置使用', '調剤払い出し', '廃棄', '貸出', 'その他'];
+const REASONS_OUT = ['拠点用', '委託巡回用', '企業巡回用', '廃棄', '貸出', 'その他'];
 
 export default function TransactionsPage() {
   const [items, setItems] = useState<Item[]>([]);
