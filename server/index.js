@@ -100,6 +100,28 @@ app.delete('/api/locations/:id', auth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Item Lots ─────────────────────────────────────────
+app.get('/api/items/:id/lots', auth, async (req, res) => {
+  res.json(await db.getLots(Number(req.params.id)));
+});
+app.post('/api/items/:id/lots', auth, async (req, res) => {
+  try {
+    const lot = { ...req.body, itemId: Number(req.params.id), stock: Number(req.body.stock || 0) };
+    res.json(await db.addLot(lot));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/items/:id/lots/:lotId', auth, async (req, res) => {
+  try {
+    res.json(await db.updateLot(Number(req.params.lotId), req.body));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/items/:id/lots/:lotId', auth, async (req, res) => {
+  try {
+    await db.deleteLot(Number(req.params.lotId));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Destinations ─────────────────────────────────────
 app.get('/api/destinations', auth, async (req, res) => res.json(await db.getDestinations()));
 app.post('/api/destinations', auth, async (req, res) => res.json(await db.addDestination(req.body)));
@@ -180,10 +202,12 @@ app.get('/api/transactions', auth, async (req, res) => {
       const matchIds = items.filter(i => i.name.includes(search)).map(i => i.id);
       txs = txs.filter(t => matchIds.includes(t.itemId) || t.userName?.includes(search));
     }
-    txs = txs.map(t => {
+    const allLots = t => t.lotId ? db.getLots(t.itemId).then(ls => ls.find(l => l.id === t.lotId)?.lotNumber) : Promise.resolve(null);
+    txs = await Promise.all(txs.map(async t => {
       const item = items.find(i => i.id === t.itemId);
-      return { ...t, itemName: item?.name || '不明', itemUnit: item?.unit || '' };
-    });
+      const lotNumber = t.lotId ? await allLots(t) : null;
+      return { ...t, itemName: item?.name || '不明', itemUnit: item?.unit || '', lotNumber };
+    }));
     res.json(txs);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

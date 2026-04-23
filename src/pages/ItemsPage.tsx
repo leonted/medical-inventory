@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import type { Item, Category, Location } from '../types';
-import { Plus, Search, Filter, QrCode, Edit2, Trash2, X, Upload, AlertTriangle } from 'lucide-react';
+import type { Item, Category, Location, ItemLot } from '../types';
+import { Plus, Search, QrCode, Edit2, Trash2, X, Upload, AlertTriangle, Layers } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const EMPTY_FORM = { name: '', categoryId: '', locationId: '', stock: '', minStock: '10', unit: '個', lotNumber: '', expiryDate: '', manufacturer: '', price: '', notes: '', isActive: 'true' };
@@ -23,6 +23,122 @@ function QRModal({ item, onClose }: { item: Item; onClose: () => void }) {
         <button onClick={() => { const a = document.createElement('a'); a.href = qr; a.download = `qr-${item.id}.png`; a.click(); }} className="btn-primary w-full mt-4">
           印刷用に保存
         </button>
+      </div>
+    </div>
+  );
+}
+
+function LotsModal({ item, onClose }: { item: Item; onClose: () => void }) {
+  const [lots, setLots] = useState<ItemLot[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState({ lotNumber: '', expiryDate: '', stock: '0' });
+  const [editForm, setEditForm] = useState({ lotNumber: '', expiryDate: '' });
+
+  const load = () => api.getLots(item.id).then(setLots);
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async () => {
+    if (!form.lotNumber) return toast.error('ロット番号を入力してください');
+    try {
+      await api.addLot(item.id, { lotNumber: form.lotNumber, expiryDate: form.expiryDate || undefined, stock: Number(form.stock) });
+      toast.success('ロットを追加しました');
+      setForm({ lotNumber: '', expiryDate: '', stock: '0' });
+      setAdding(false);
+      load();
+    } catch (e) { toast.error(e instanceof Error ? e.message : '失敗しました'); }
+  };
+
+  const handleUpdate = async (id: number) => {
+    await api.updateLot(item.id, id, { lotNumber: editForm.lotNumber, expiryDate: editForm.expiryDate || undefined });
+    toast.success('更新しました');
+    setEditId(null);
+    load();
+  };
+
+  const handleDelete = async (lot: ItemLot) => {
+    if (lot.stock > 0) return toast.error(`在庫が残っています（${lot.stock}${item.unit}）。出庫してから削除してください`);
+    if (!confirm(`ロット「${lot.lotNumber}」を削除しますか？`)) return;
+    await api.deleteLot(item.id, lot.id);
+    toast.success('削除しました');
+    load();
+  };
+
+  const expiryColor = (d?: string) => {
+    if (!d) return 'text-gray-400';
+    const days = (new Date(d).getTime() - Date.now()) / 86400000;
+    return days < 30 ? 'text-red-600 font-bold' : days < 90 ? 'text-orange-500' : 'text-gray-600';
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl w-full max-w-lg my-4">
+        <div className="flex justify-between items-center p-5 border-b">
+          <div>
+            <h3 className="font-bold text-gray-800">ロット管理</h3>
+            <p className="text-sm text-gray-400">{item.name}</p>
+          </div>
+          <button onClick={onClose}><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          {lots.length === 0 && !adding && (
+            <p className="text-center text-gray-400 py-6 text-sm">ロットが登録されていません</p>
+          )}
+
+          {lots.map(lot => (
+            <div key={lot.id} className="border border-gray-100 rounded-lg p-3">
+              {editId === lot.id ? (
+                <div className="space-y-2">
+                  <input className="input text-sm" placeholder="ロット番号" value={editForm.lotNumber} onChange={e => setEditForm(f => ({ ...f, lotNumber: e.target.value }))} />
+                  <input type="date" className="input text-sm" value={editForm.expiryDate} onChange={e => setEditForm(f => ({ ...f, expiryDate: e.target.value }))} />
+                  <div className="flex gap-2">
+                    <button onClick={() => setEditId(null)} className="btn-secondary text-xs flex-1">キャンセル</button>
+                    <button onClick={() => handleUpdate(lot.id)} className="btn-primary text-xs flex-1">保存</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-gray-800">{lot.lotNumber}</p>
+                    <div className="flex gap-3 mt-0.5">
+                      <span className={`text-xs ${expiryColor(lot.expiryDate)}`}>
+                        期限: {lot.expiryDate || '未設定'}
+                      </span>
+                      <span className="text-xs text-gray-500">在庫: <span className="font-bold">{lot.stock}{item.unit}</span></span>
+                    </div>
+                  </div>
+                  <button onClick={() => { setEditId(lot.id); setEditForm({ lotNumber: lot.lotNumber, expiryDate: lot.expiryDate || '' }); }} className="p-1 text-gray-400 hover:text-blue-600"><Edit2 className="w-4 h-4" /></button>
+                  <button onClick={() => handleDelete(lot)} className="p-1 text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {adding ? (
+            <div className="border-2 border-blue-200 border-dashed rounded-lg p-4 space-y-3 bg-blue-50">
+              <input className="input text-sm" placeholder="ロット番号（例: LOT2025-001）" value={form.lotNumber} onChange={e => setForm(f => ({ ...f, lotNumber: e.target.value }))} autoFocus />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">使用期限</label>
+                  <input type="date" className="input text-sm" value={form.expiryDate} onChange={e => setForm(f => ({ ...f, expiryDate: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">初期在庫数（{item.unit}）</label>
+                  <input type="number" min="0" className="input text-sm" value={form.stock} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))} />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setAdding(false)} className="btn-secondary text-sm flex-1">キャンセル</button>
+                <button onClick={handleAdd} className="btn-primary text-sm flex-1">追加する</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setAdding(true)} className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2">
+              <Plus className="w-4 h-4" /> ロットを追加
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -169,6 +285,7 @@ export default function ItemsPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [editItem, setEditItem] = useState<Item | null | undefined>(undefined);
   const [qrItem, setQrItem] = useState<Item | null>(null);
+  const [lotsItem, setLotsItem] = useState<Item | null>(null);
 
   const load = () => {
     const params: Record<string, string> = {};
@@ -276,6 +393,9 @@ export default function ItemsPage() {
                 )}
                 {/* Actions */}
                 <div className="flex items-center gap-1 mt-3 pt-2 border-t border-gray-50">
+                  <button onClick={() => setLotsItem(item)} className="flex-1 flex items-center justify-center gap-1 py-1 text-xs text-gray-400 hover:text-purple-600 transition-colors" title="ロット管理">
+                    <Layers className="w-3.5 h-3.5" />
+                  </button>
                   <button onClick={() => setQrItem(item)} className="flex-1 flex items-center justify-center gap-1 py-1 text-xs text-gray-400 hover:text-blue-600 transition-colors" title="QRコード">
                     <QrCode className="w-3.5 h-3.5" />
                   </button>
@@ -303,6 +423,7 @@ export default function ItemsPage() {
       )}
 
       {qrItem && <QRModal item={qrItem} onClose={() => setQrItem(null)} />}
+      {lotsItem && <LotsModal item={lotsItem} onClose={() => { setLotsItem(null); load(); }} />}
     </div>
   );
 }

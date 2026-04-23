@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import type { Item, Category } from '../types';
+import type { Item, Category, ItemLot } from '../types';
 import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -19,6 +19,8 @@ export default function TransactionsPage() {
   const [destination, setDestination] = useState('');
   const [destCustom, setDestCustom] = useState('');
   const [txDate, setTxDate] = useState(() => new Date().toISOString().slice(0, 16));
+  const [lots, setLots] = useState<ItemLot[]>([]);
+  const [selectedLotId, setSelectedLotId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -28,20 +30,31 @@ export default function TransactionsPage() {
     api.getDestinations().then(setDestinations);
   }, []);
 
-  const filtered = items.filter(i => i.name.includes(search));
+  const filtered = items.filter(i => i.name.includes(search) && i.isActive !== false);
   const getCat = (id: number) => categories.find(c => c.id === id);
+
+  const selectItem = (item: Item) => {
+    setSelectedItem(item);
+    setSelectedLotId(null);
+    api.getLots(item.id).then(setLots);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem) return toast.error('資材を選択してください');
     if (!quantity || Number(quantity) <= 0) return toast.error('数量を入力してください');
-    if (type === 'out' && Number(quantity) > selectedItem.stock) {
-      return toast.error(`在庫が不足しています（現在庫: ${selectedItem.stock}${selectedItem.unit}）`);
+    const selectedLot = lots.find(l => l.id === selectedLotId);
+    if (type === 'out' && lots.length > 0 && !selectedLotId) {
+      return toast.error('出庫するロットを選択してください');
+    }
+    const availableStock = selectedLot ? selectedLot.stock : selectedItem.stock;
+    if (type === 'out' && Number(quantity) > availableStock) {
+      return toast.error(`在庫が不足しています（選択ロット在庫: ${availableStock}${selectedItem.unit}）`);
     }
     setSaving(true);
     try {
       const resolvedDest = type === 'out' ? (destination === '__custom__' ? destCustom : destination) : undefined;
-      await api.addTransaction({ itemId: selectedItem.id, type, quantity: Number(quantity), reason: reason || 'その他', notes, destination: resolvedDest, createdAt: new Date(txDate).toISOString() });
+      await api.addTransaction({ itemId: selectedItem.id, type, quantity: Number(quantity), reason: reason || 'その他', notes, destination: resolvedDest, createdAt: new Date(txDate).toISOString(), lotId: selectedLotId || undefined });
       toast.success(`${type === 'in' ? '入庫' : '出庫'}を記録しました`);
       const updated = await api.getItem(selectedItem.id);
       setSelectedItem(updated);
@@ -52,6 +65,8 @@ export default function TransactionsPage() {
       setDestination('');
       setDestCustom('');
       setTxDate(new Date().toISOString().slice(0, 16));
+      setSelectedLotId(null);
+      api.getLots(selectedItem.id).then(setLots);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '記録に失敗しました');
     } finally {
@@ -80,7 +95,7 @@ export default function TransactionsPage() {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setSelectedItem(item)}
+                  onClick={() => selectItem(item)}
                   className={`w-full text-left p-3 rounded-lg border transition-colors ${
                     isSelected ? 'border-blue-400 bg-blue-50' : 'border-transparent hover:bg-gray-50'
                   }`}
@@ -150,20 +165,51 @@ export default function TransactionsPage() {
                 </div>
               </div>
 
+              {/* Lot selection */}
+              {lots.length > 0 && (
+                <div>
+                  <label className="label">ロット選択{type === 'out' && <span className="text-red-500"> *</span>}</label>
+                  <div className="space-y-2">
+                    {lots.map(lot => {
+                      const days = lot.expiryDate ? Math.ceil((new Date(lot.expiryDate).getTime() - Date.now()) / 86400000) : null;
+                      const expColor = days === null ? 'text-gray-400' : days < 30 ? 'text-red-600' : days < 90 ? 'text-orange-500' : 'text-gray-500';
+                      return (
+                        <button
+                          key={lot.id}
+                          type="button"
+                          onClick={() => setSelectedLotId(lot.id === selectedLotId ? null : lot.id)}
+                          className={`w-full text-left p-3 rounded-lg border-2 transition-colors ${selectedLotId === lot.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="text-sm font-bold text-gray-800">{lot.lotNumber}</p>
+                              <p className={`text-xs ${expColor}`}>期限: {lot.expiryDate || '未設定'}{days !== null && ` (残${days}日)`}</p>
+                            </div>
+                            <span className={`text-sm font-bold ${lot.stock === 0 ? 'text-gray-300' : 'text-green-600'}`}>{lot.stock}{selectedItem.unit}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Quantity */}
               <div>
                 <label className="label">数量（{selectedItem.unit}）</label>
                 <input
                   type="number"
                   min="1"
-                  max={type === 'out' ? selectedItem.stock : undefined}
                   required
                   className="input text-lg"
                   value={quantity}
                   onChange={e => setQuantity(e.target.value)}
                   placeholder="0"
                 />
-                {type === 'out' && Number(quantity) > selectedItem.stock && (
+                {type === 'out' && selectedLotId && Number(quantity) > (lots.find(l => l.id === selectedLotId)?.stock ?? 0) && (
+                  <p className="text-red-500 text-xs mt-1">このロットの在庫が不足しています</p>
+                )}
+                {type === 'out' && lots.length === 0 && Number(quantity) > selectedItem.stock && (
                   <p className="text-red-500 text-xs mt-1">在庫が不足しています</p>
                 )}
               </div>

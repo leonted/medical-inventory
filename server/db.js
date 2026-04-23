@@ -87,10 +87,19 @@ export async function initSchema() {
       name TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS item_lots (
+      id SERIAL PRIMARY KEY,
+      item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
+      lot_number TEXT NOT NULL,
+      expiry_date DATE,
+      stock NUMERIC NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
   // 既存テーブルへの列追加（マイグレーション）
   await query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS destination TEXT`);
   await query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS lot_id INTEGER REFERENCES item_lots(id)`);
 }
 
 // ── シード（初回のみ） ────────────────────────────
@@ -181,7 +190,7 @@ function toTx(r) {
   return {
     id: r.id, itemId: r.item_id, type: r.type, quantity: Number(r.quantity),
     userId: r.user_id, userName: r.user_name, reason: r.reason, notes: r.notes,
-    destination: r.destination, createdAt: r.created_at,
+    destination: r.destination, lotId: r.lot_id, createdAt: r.created_at,
   };
 }
 
@@ -253,6 +262,44 @@ export const db = {
   deleteLocation: async (id) => {
     if (USE_PG) { await query('DELETE FROM locations WHERE id=$1', [id]); return; }
     writeJson('locations.json', readJson('locations.json').filter(x => x.id !== id));
+  },
+
+  // Item Lots
+  getLots: async (itemId) => {
+    if (USE_PG) return (await query('SELECT * FROM item_lots WHERE item_id=$1 ORDER BY expiry_date ASC NULLS LAST, id ASC', [itemId])).map(r => ({
+      id: r.id, itemId: r.item_id, lotNumber: r.lot_number,
+      expiryDate: r.expiry_date?.toISOString?.()?.split('T')[0] ?? r.expiry_date,
+      stock: Number(r.stock), createdAt: r.created_at,
+    }));
+    return readJson('item_lots.json').filter(l => l.itemId === itemId);
+  },
+  addLot: async (lot) => {
+    if (USE_PG) {
+      const r = (await query(
+        'INSERT INTO item_lots (item_id, lot_number, expiry_date, stock) VALUES ($1,$2,$3,$4) RETURNING *',
+        [lot.itemId, lot.lotNumber, lot.expiryDate || null, lot.stock || 0]
+      ))[0];
+      if (lot.stock > 0) await query('UPDATE items SET stock=stock+$1, updated_at=NOW() WHERE id=$2', [lot.stock, lot.itemId]);
+      return { id: r.id, itemId: r.item_id, lotNumber: r.lot_number, expiryDate: r.expiry_date?.toISOString?.()?.split('T')[0] ?? r.expiry_date, stock: Number(r.stock) };
+    }
+    const lots = readJson('item_lots.json');
+    const n = { ...lot, id: nextId(lots), createdAt: new Date().toISOString() };
+    lots.push(n); writeJson('item_lots.json', lots); return n;
+  },
+  updateLot: async (id, lot) => {
+    if (USE_PG) {
+      const r = (await query(
+        'UPDATE item_lots SET lot_number=$1, expiry_date=$2 WHERE id=$3 RETURNING *',
+        [lot.lotNumber, lot.expiryDate || null, id]
+      ))[0];
+      return { id: r.id, itemId: r.item_id, lotNumber: r.lot_number, expiryDate: r.expiry_date?.toISOString?.()?.split('T')[0] ?? r.expiry_date, stock: Number(r.stock) };
+    }
+    const lots = readJson('item_lots.json'); const i = lots.findIndex(x => x.id === id);
+    if (i === -1) return null; lots[i] = { ...lots[i], ...lot }; writeJson('item_lots.json', lots); return lots[i];
+  },
+  deleteLot: async (id) => {
+    if (USE_PG) { await query('DELETE FROM item_lots WHERE id=$1', [id]); return; }
+    writeJson('item_lots.json', readJson('item_lots.json').filter(x => x.id !== id));
   },
 
   // Destinations
@@ -352,11 +399,12 @@ export const db = {
   addTransaction: async (tx) => {
     if (USE_PG) {
       const r = (await query(
-        `INSERT INTO transactions (item_id,type,quantity,user_id,user_name,reason,notes,destination,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-        [tx.itemId, tx.type, tx.quantity, tx.userId||null, tx.userName||null, tx.reason||null, tx.notes||null, tx.destination||null, tx.createdAt || new Date()]
+        `INSERT INTO transactions (item_id,type,quantity,user_id,user_name,reason,notes,destination,created_at,lot_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        [tx.itemId, tx.type, tx.quantity, tx.userId||null, tx.userName||null, tx.reason||null, tx.notes||null, tx.destination||null, tx.createdAt || new Date(), tx.lotId||null]
       ))[0];
       const delta = tx.type === 'in' ? tx.quantity : -tx.quantity;
       await query('UPDATE items SET stock=stock+$1, updated_at=NOW() WHERE id=$2', [delta, tx.itemId]);
+      if (tx.lotId) await query('UPDATE item_lots SET stock=stock+$1 WHERE id=$2', [delta, tx.lotId]);
       return toTx(r);
     }
     const txs = readJson('transactions.json');

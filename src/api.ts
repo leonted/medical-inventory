@@ -52,6 +52,12 @@ export const api = {
   deleteItem: (id: number) => req('DELETE', `/items/${id}`),
   getQR: (id: number) => req('GET', `/items/${id}/qr`),
 
+  // Lots
+  getLots: (itemId: number) => req('GET', `/items/${itemId}/lots`),
+  addLot: (itemId: number, d: unknown) => req('POST', `/items/${itemId}/lots`, d),
+  updateLot: (itemId: number, lotId: number, d: unknown) => req('PUT', `/items/${itemId}/lots/${lotId}`, d),
+  deleteLot: (itemId: number, lotId: number) => req('DELETE', `/items/${itemId}/lots/${lotId}`),
+
   // Transactions
   getTransactions: (params?: Record<string, string>) => {
     const q = params ? '?' + new URLSearchParams(params) : '';

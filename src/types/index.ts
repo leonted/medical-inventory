@@ -37,6 +37,14 @@ export interface Item {
   updatedAt?: string;
 }
 
+export interface ItemLot {
+  id: number;
+  itemId: number;
+  lotNumber: string;
+  expiryDate?: string;
+  stock: number;
+}
+
 export interface Transaction {
   id: number;
   itemId: number;
@@ -49,6 +57,8 @@ export interface Transaction {
   reason: string;
   notes?: string;
   destination?: string;
+  lotId?: number;
+  lotNumber?: string;
   createdAt: string;
 }
 

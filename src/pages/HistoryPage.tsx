@@ -32,9 +32,9 @@ export default function HistoryPage() {
   };
 
   const exportCSV = () => {
-    const header = 'ID,日時,品名,種別,数量,単位,担当者,理由,出庫場所,備考';
+    const header = 'ID,日時,品名,種別,数量,単位,担当者,理由,ロット,出庫場所,備考';
     const rows = txs.map(t =>
-      [t.id, new Date(t.createdAt).toLocaleString('ja-JP'), t.itemName, t.type === 'in' ? '入庫' : '出庫', t.quantity, t.itemUnit, t.userName, t.reason, t.destination || '', t.notes || ''].join(',')
+      [t.id, new Date(t.createdAt).toLocaleString('ja-JP'), t.itemName, t.type === 'in' ? '入庫' : '出庫', t.quantity, t.itemUnit, t.userName, t.reason, t.lotNumber || '', t.destination || '', t.notes || ''].join(',')
     );
     const csv = '\uFEFF' + [header, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -83,6 +83,7 @@ export default function HistoryPage() {
                 <th className="text-right px-4 py-3 text-gray-500 font-medium">数量</th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium">担当者</th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium">理由</th>
+                <th className="text-left px-4 py-3 text-gray-500 font-medium hidden sm:table-cell">ロット</th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium hidden md:table-cell">出庫場所</th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium hidden lg:table-cell">備考</th>
                 <th className="px-4 py-3"></th>
@@ -120,6 +121,9 @@ export default function HistoryPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600">{tx.reason}</td>
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    {tx.lotNumber ? <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-mono">{tx.lotNumber}</span> : <span className="text-gray-300">-</span>}
+                  </td>
                   <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{tx.destination || '-'}</td>
                   <td className="px-4 py-3 text-gray-400 hidden lg:table-cell">{tx.notes || '-'}</td>
                   <td className="px-4 py-3">
