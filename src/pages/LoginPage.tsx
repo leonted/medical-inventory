@@ -74,11 +74,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-500">
-            <p className="font-medium text-gray-600 mb-2">テストアカウント</p>
-            <p>管理者: <span className="font-mono">admin</span> / <span className="font-mono">admin123</span></p>
-            <p>看護師: <span className="font-mono">nurse1</span> / <span className="font-mono">nurse123</span></p>
-          </div>
+
         </div>
       </div>
     </div>
