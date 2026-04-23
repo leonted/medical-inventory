@@ -47,6 +47,7 @@ export interface Transaction {
   userName: string;
   reason: string;
   notes?: string;
+  destination?: string;
   createdAt: string;
 }
 

@@ -7,6 +7,18 @@ import toast from 'react-hot-toast';
 const REASONS_IN = ['定期発注', '補充', '返品入庫', '棚卸調整', 'その他'];
 const REASONS_OUT = ['接種使用', '処置使用', '調剤払い出し', '廃棄', '貸出', 'その他'];
 
+const DESTINATIONS: { pref: string; cities: string[] }[] = [
+  { pref: '茨城県', cities: ['つくばみらい', 'かすみがうら', 'つくば', 'いばらき', 'ひたち'] },
+  { pref: '千葉県', cities: ['なりた', 'のだ', 'かとり', 'やちよ', 'あびこ'] },
+  { pref: '埼玉県', cities: ['あさか', 'かわごえ', 'かすかべ'] },
+  { pref: '東京都', cities: ['あだち', 'せたがや', 'まちだ', 'すぎなみ', 'えどがわ', 'にしとうきょう'] },
+  { pref: '神奈川県', cities: ['あつぎ', 'よこはま', 'よこすか', 'かわさき', 'ひらつか', 'ふじさわ'] },
+  { pref: '栃木県', cities: ['うつのみや', 'もおか', 'とちぎ', 'しおや'] },
+  { pref: '静岡県', cities: ['ぬまづ'] },
+  { pref: '愛知県', cities: ['なごや', 'みよし', 'きよす'] },
+  { pref: '新潟県', cities: ['いといがわ', 'にいがた', 'ながおか', 'じょうえつ'] },
+];
+
 export default function TransactionsPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -15,6 +27,7 @@ export default function TransactionsPage() {
   const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
+  const [destination, setDestination] = useState('');
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -35,7 +48,7 @@ export default function TransactionsPage() {
     }
     setSaving(true);
     try {
-      await api.addTransaction({ itemId: selectedItem.id, type, quantity: Number(quantity), reason: reason || 'その他', notes });
+      await api.addTransaction({ itemId: selectedItem.id, type, quantity: Number(quantity), reason: reason || 'その他', notes, destination: type === 'out' ? destination : undefined });
       toast.success(`${type === 'in' ? '入庫' : '出庫'}を記録しました`);
       // Refresh item stock
       const updated = await api.getItem(selectedItem.id);
@@ -44,6 +57,7 @@ export default function TransactionsPage() {
       setQuantity('');
       setNotes('');
       setReason('');
+      setDestination('');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '記録に失敗しました');
     } finally {
@@ -156,6 +170,23 @@ export default function TransactionsPage() {
                   {(type === 'in' ? REASONS_IN : REASONS_OUT).map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
+
+              {/* Destination (出庫のみ) */}
+              {type === 'out' && (
+                <div>
+                  <label className="label">出庫場所</label>
+                  <select className="input" value={destination} onChange={e => setDestination(e.target.value)}>
+                    <option value="">選択してください</option>
+                    {DESTINATIONS.map(({ pref, cities }) => (
+                      <optgroup key={pref} label={pref}>
+                        {cities.map(city => (
+                          <option key={city} value={`${pref} ${city}`}>{city}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Notes */}
               <div>

@@ -68,6 +68,7 @@ export async function initSchema() {
       user_name TEXT,
       reason TEXT,
       notes TEXT,
+      destination TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE TABLE IF NOT EXISTS stocktakes (
@@ -81,6 +82,8 @@ export async function initSchema() {
       closed_at TIMESTAMPTZ
     );
   `);
+  // 既存テーブルへの列追加（マイグレーション）
+  await query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS destination TEXT`);
 }
 
 // ── シード（初回のみ） ────────────────────────────
@@ -150,7 +153,7 @@ function toTx(r) {
   return {
     id: r.id, itemId: r.item_id, type: r.type, quantity: Number(r.quantity),
     userId: r.user_id, userName: r.user_name, reason: r.reason, notes: r.notes,
-    createdAt: r.created_at,
+    destination: r.destination, createdAt: r.created_at,
   };
 }
 
@@ -303,8 +306,8 @@ export const db = {
   addTransaction: async (tx) => {
     if (USE_PG) {
       const r = (await query(
-        `INSERT INTO transactions (item_id,type,quantity,user_id,user_name,reason,notes) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-        [tx.itemId, tx.type, tx.quantity, tx.userId||null, tx.userName||null, tx.reason||null, tx.notes||null]
+        `INSERT INTO transactions (item_id,type,quantity,user_id,user_name,reason,notes,destination) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [tx.itemId, tx.type, tx.quantity, tx.userId||null, tx.userName||null, tx.reason||null, tx.notes||null, tx.destination||null]
       ))[0];
       const delta = tx.type === 'in' ? tx.quantity : -tx.quantity;
       await query('UPDATE items SET stock=stock+$1, updated_at=NOW() WHERE id=$2', [delta, tx.itemId]);

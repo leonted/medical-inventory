@@ -24,9 +24,9 @@ export default function HistoryPage() {
   useEffect(() => { load(); }, [search, typeFilter, from, to]);
 
   const exportCSV = () => {
-    const header = 'ID,日時,品名,種別,数量,単位,担当者,理由,備考';
+    const header = 'ID,日時,品名,種別,数量,単位,担当者,理由,出庫場所,備考';
     const rows = txs.map(t =>
-      [t.id, new Date(t.createdAt).toLocaleString('ja-JP'), t.itemName, t.type === 'in' ? '入庫' : '出庫', t.quantity, t.itemUnit, t.userName, t.reason, t.notes || ''].join(',')
+      [t.id, new Date(t.createdAt).toLocaleString('ja-JP'), t.itemName, t.type === 'in' ? '入庫' : '出庫', t.quantity, t.itemUnit, t.userName, t.reason, t.destination || '', t.notes || ''].join(',')
     );
     const csv = '\uFEFF' + [header, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -75,6 +75,7 @@ export default function HistoryPage() {
                 <th className="text-right px-4 py-3 text-gray-500 font-medium">数量</th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium">担当者</th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium">理由</th>
+                <th className="text-left px-4 py-3 text-gray-500 font-medium hidden md:table-cell">出庫場所</th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium hidden lg:table-cell">備考</th>
               </tr>
             </thead>
@@ -82,7 +83,7 @@ export default function HistoryPage() {
               {loading ? (
                 <tr><td colSpan={7} className="text-center py-10 text-gray-400">読み込み中...</td></tr>
               ) : txs.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-10 text-gray-400">履歴がありません</td></tr>
+                <tr><td colSpan={8} className="text-center py-10 text-gray-400">履歴がありません</td></tr>
               ) : txs.map(tx => (
                 <tr key={tx.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
@@ -103,6 +104,7 @@ export default function HistoryPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-600">{tx.userName}</td>
                   <td className="px-4 py-3 text-gray-600">{tx.reason}</td>
+                  <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{tx.destination || '-'}</td>
                   <td className="px-4 py-3 text-gray-400 hidden lg:table-cell">{tx.notes || '-'}</td>
                 </tr>
               ))}
