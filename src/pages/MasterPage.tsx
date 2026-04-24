@@ -358,8 +358,12 @@ function UserSection() {
           <input className="input" placeholder="ユーザーID（例: hanako）" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} />
           <input type="password" className="input" placeholder="パスワード（6文字以上）" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
           <select className="input" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
-            <option value="staff">スタッフ</option>
-            <option value="admin">管理者</option>
+            <option value="user">スタッフ（閲覧のみ）</option>
+            <option value="rmg">リスクマネージャー（1次確認）</option>
+            <option value="mg">マネージャー（1次確認）</option>
+            <option value="shozokucho">所属長（2次確認）</option>
+            <option value="honbu">本部（最終承認）</option>
+            <option value="admin">管理者（全権限）</option>
           </select>
           <div className="flex gap-2">
             <button onClick={() => setAdding(false)} className="btn-secondary text-sm flex-1">キャンセル</button>
@@ -376,7 +380,10 @@ function UserSection() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-800">{u.name}</p>
-              <p className="text-xs text-gray-400">@{u.username} · {u.role === 'admin' ? '管理者' : 'スタッフ'}</p>
+              <p className="text-xs text-gray-400">@{u.username} · {{
+                admin: '管理者', honbu: '本部', shozokucho: '所属長',
+                rmg: 'リスクMG', mg: 'マネージャー', user: 'スタッフ', staff: 'スタッフ',
+              }[u.role] || u.role}</p>
             </div>
             {u.id !== me?.id && (
               <button onClick={() => handleDelete(u.id, u.name)} className="p-1 text-gray-400 hover:text-red-600">

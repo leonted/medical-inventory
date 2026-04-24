@@ -100,6 +100,44 @@ export async function initSchema() {
   await query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS destination TEXT`);
   await query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
   await query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS lot_id INTEGER REFERENCES item_lots(id)`);
+
+  // ── インシデント報告テーブル ──────────────────────
+  await query(`
+    CREATE TABLE IF NOT EXISTS incident_bases (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS incident_reports (
+      id SERIAL PRIMARY KEY,
+      report_type TEXT NOT NULL,
+      occurrence_date DATE NOT NULL,
+      occurrence_time TEXT,
+      base_id INTEGER REFERENCES incident_bases(id),
+      base_name TEXT NOT NULL,
+      department TEXT NOT NULL,
+      patient_name TEXT NOT NULL,
+      situation TEXT NOT NULL,
+      background TEXT NOT NULL,
+      assessment TEXT NOT NULL,
+      recommendation TEXT NOT NULL,
+      severity TEXT,
+      status TEXT NOT NULL DEFAULT 'submitted',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ
+    );
+    CREATE TABLE IF NOT EXISTS incident_approvals (
+      id SERIAL PRIMARY KEY,
+      report_id INTEGER REFERENCES incident_reports(id) ON DELETE CASCADE,
+      step TEXT NOT NULL,
+      action TEXT NOT NULL,
+      approver_id INTEGER,
+      approver_name TEXT NOT NULL,
+      comment TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
 }
 
 // ── シード（初回のみ） ────────────────────────────
@@ -174,6 +212,26 @@ export async function seedDestinations() {
   }
 }
 
+export async function seedIncidentBases() {
+  if (!USE_PG) return;
+  const existing = await query('SELECT COUNT(*) FROM incident_bases');
+  if (Number(existing[0].count) > 0) return;
+  const bases = [
+    '茨城県 つくばみらい','茨城県 かすみがうら','茨城県 つくば','茨城県 いばらき','茨城県 ひたち',
+    '千葉県 なりた','千葉県 のだ','千葉県 かとり','千葉県 やちよ','千葉県 あびこ',
+    '埼玉県 あさか','埼玉県 かわごえ','埼玉県 かすかべ',
+    '東京都 あだち','東京都 せたがや','東京都 まちだ','東京都 すぎなみ','東京都 えどがわ','東京都 にしとうきょう',
+    '神奈川県 あつぎ','神奈川県 よこはま','神奈川県 よこすか','神奈川県 かわさき','神奈川県 ひらつか','神奈川県 ふじさわ',
+    '栃木県 うつのみや','栃木県 もおか','栃木県 とちぎ','栃木県 しおや',
+    '静岡県 ぬまづ',
+    '愛知県 なごや','愛知県 みよし','愛知県 きよす',
+    '新潟県 いといがわ','新潟県 にいがた','新潟県 ながおか','新潟県 じょうえつ',
+  ];
+  for (const name of bases) {
+    await query('INSERT INTO incident_bases (name) VALUES ($1)', [name]);
+  }
+}
+
 // ── ヘルパー: スネークケース→キャメルケース変換 ──
 function toItem(r) {
   if (!r) return null;
@@ -191,6 +249,25 @@ function toTx(r) {
     id: r.id, itemId: r.item_id, type: r.type, quantity: Number(r.quantity),
     userId: r.user_id, userName: r.user_name, reason: r.reason, notes: r.notes,
     destination: r.destination, lotId: r.lot_id, createdAt: r.created_at,
+  };
+}
+function toIncident(r) {
+  return {
+    id: r.id, reportType: r.report_type,
+    occurrenceDate: r.occurrence_date?.toISOString?.()?.split('T')[0] ?? r.occurrence_date,
+    occurrenceTime: r.occurrence_time, baseId: r.base_id, baseName: r.base_name,
+    department: r.department, patientName: r.patient_name,
+    situation: r.situation, background: r.background,
+    assessment: r.assessment, recommendation: r.recommendation,
+    severity: r.severity, status: r.status,
+    createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+function toApproval(r) {
+  return {
+    id: r.id, reportId: r.report_id, step: r.step, action: r.action,
+    approverId: r.approver_id, approverName: r.approver_name,
+    comment: r.comment, createdAt: r.created_at,
   };
 }
 
@@ -440,5 +517,94 @@ export const db = {
     }
     const sts = readJson('stocktakes.json'); const i = sts.findIndex(x => x.id === id);
     if (i === -1) return null; sts[i] = { ...sts[i], ...st }; writeJson('stocktakes.json', sts); return sts[i];
+  },
+
+  // ── 拠点マスタ ──────────────────────────────────
+  getIncidentBases: async () => {
+    if (USE_PG) return await query('SELECT * FROM incident_bases ORDER BY id');
+    return readJson('incident_bases.json');
+  },
+  addIncidentBase: async (b) => {
+    if (USE_PG) return (await query('INSERT INTO incident_bases (name) VALUES ($1) RETURNING *', [b.name]))[0];
+    const list = readJson('incident_bases.json'); const n = { ...b, id: nextId(list), isActive: true, createdAt: new Date().toISOString() }; list.push(n); writeJson('incident_bases.json', list); return n;
+  },
+  updateIncidentBase: async (id, b) => {
+    if (USE_PG) return (await query('UPDATE incident_bases SET name=$1, is_active=$2 WHERE id=$3 RETURNING *', [b.name, b.isActive !== false, id]))[0];
+    const list = readJson('incident_bases.json'); const i = list.findIndex(x => x.id === id); if (i === -1) return null; list[i] = { ...list[i], ...b }; writeJson('incident_bases.json', list); return list[i];
+  },
+  deleteIncidentBase: async (id) => {
+    if (USE_PG) { await query('DELETE FROM incident_bases WHERE id=$1', [id]); return; }
+    writeJson('incident_bases.json', readJson('incident_bases.json').filter(x => x.id !== id));
+  },
+
+  // ── インシデント報告 ─────────────────────────────
+  submitIncident: async (data) => {
+    if (USE_PG) {
+      const r = (await query(
+        `INSERT INTO incident_reports
+          (report_type, occurrence_date, occurrence_time, base_id, base_name, department,
+           patient_name, situation, background, assessment, recommendation, severity)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        [data.reportType, data.occurrenceDate, data.occurrenceTime || null,
+         data.baseId || null, data.baseName, data.department, data.patientName,
+         data.situation, data.background, data.assessment, data.recommendation,
+         data.severity || null]
+      ))[0];
+      return toIncident(r);
+    }
+    const list = readJson('incident_reports.json');
+    const n = { ...data, id: nextId(list), status: 'submitted', createdAt: new Date().toISOString() };
+    list.push(n); writeJson('incident_reports.json', list); return n;
+  },
+  getIncidents: async (filters = {}) => {
+    if (USE_PG) {
+      let sql = 'SELECT * FROM incident_reports WHERE 1=1';
+      const params = [];
+      if (filters.status) { params.push(filters.status); sql += ` AND status=$${params.length}`; }
+      if (filters.reportType) { params.push(filters.reportType); sql += ` AND report_type=$${params.length}`; }
+      if (filters.baseId) { params.push(filters.baseId); sql += ` AND base_id=$${params.length}`; }
+      if (filters.from) { params.push(filters.from); sql += ` AND occurrence_date>=$${params.length}`; }
+      if (filters.to) { params.push(filters.to); sql += ` AND occurrence_date<=$${params.length}`; }
+      sql += ' ORDER BY id DESC';
+      return (await query(sql, params)).map(toIncident);
+    }
+    return readJson('incident_reports.json').sort((a, b) => b.id - a.id);
+  },
+  getIncident: async (id) => {
+    if (USE_PG) {
+      const rows = await query('SELECT * FROM incident_reports WHERE id=$1', [id]);
+      if (!rows[0]) return null;
+      const approvals = await query('SELECT * FROM incident_approvals WHERE report_id=$1 ORDER BY id', [id]);
+      return { ...toIncident(rows[0]), approvals: approvals.map(toApproval) };
+    }
+    const r = readJson('incident_reports.json').find(x => x.id === id);
+    return r ? { ...r, approvals: readJson('incident_approvals.json').filter(a => a.reportId === id) } : null;
+  },
+  approveIncident: async (id, step, data) => {
+    if (USE_PG) {
+      const nextStatus = { rmg: 'rmg_checked', shozokucho: 'shozokucho_checked', honbu: 'approved' };
+      await query(
+        'INSERT INTO incident_approvals (report_id, step, action, approver_id, approver_name, comment) VALUES ($1,$2,$3,$4,$5,$6)',
+        [id, step, data.action, data.approverId || null, data.approverName, data.comment || null]
+      );
+      const newStatus = data.action === 'returned' ? 'submitted' : nextStatus[step];
+      await query('UPDATE incident_reports SET status=$1, updated_at=NOW() WHERE id=$2', [newStatus, id]);
+      return { ok: true };
+    }
+  },
+  getIncidentStats: async (year) => {
+    if (!USE_PG) return { monthly: [], byType: [], byBase: [] };
+    const rows = await query(`
+      SELECT
+        EXTRACT(MONTH FROM occurrence_date)::int AS month,
+        report_type,
+        base_name,
+        COUNT(*)::int AS count
+      FROM incident_reports
+      WHERE EXTRACT(YEAR FROM occurrence_date) = $1
+      GROUP BY month, report_type, base_name
+      ORDER BY month
+    `, [year]);
+    return rows;
   },
 };

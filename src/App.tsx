@@ -10,6 +10,10 @@ import StocktakePage from './pages/StocktakePage';
 import MasterPage from './pages/MasterPage';
 import ScanPage from './pages/ScanPage';
 import HistoryPage from './pages/HistoryPage';
+import IncidentReportPage from './pages/IncidentReportPage';
+import IncidentListPage from './pages/IncidentListPage';
+import IncidentDetailPage from './pages/IncidentDetailPage';
+import IncidentStatsPage from './pages/IncidentStatsPage';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -25,6 +29,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/scan/:id" element={<ScanPage />} />
+        <Route path="/report" element={<IncidentReportPage />} />
         <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
@@ -33,6 +38,9 @@ export default function App() {
           <Route path="history" element={<HistoryPage />} />
           <Route path="stocktake" element={<StocktakePage />} />
           <Route path="master" element={<MasterPage />} />
+          <Route path="incidents" element={<IncidentListPage />} />
+          <Route path="incidents/stats" element={<IncidentStatsPage />} />
+          <Route path="incidents/:id" element={<IncidentDetailPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

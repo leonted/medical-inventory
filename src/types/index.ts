@@ -1,8 +1,50 @@
+export type UserRole = 'admin' | 'honbu' | 'shozokucho' | 'rmg' | 'mg' | 'user';
+
 export interface User {
   id: number;
   username: string;
   name: string;
-  role: 'admin' | 'user';
+  role: UserRole;
+}
+
+export interface IncidentBase {
+  id: number;
+  name: string;
+  is_active: boolean;
+}
+
+export type IncidentStatus = 'submitted' | 'rmg_checked' | 'shozokucho_checked' | 'approved';
+export type ReportType = 'incident' | 'near_miss' | 'complaint';
+
+export interface IncidentReport {
+  id: number;
+  reportType: ReportType;
+  occurrenceDate: string;
+  occurrenceTime?: string;
+  baseId?: number;
+  baseName: string;
+  department: string;
+  patientName: string;
+  situation: string;
+  background: string;
+  assessment: string;
+  recommendation: string;
+  severity?: string;
+  status: IncidentStatus;
+  createdAt: string;
+  updatedAt?: string;
+  approvals?: IncidentApproval[];
+}
+
+export interface IncidentApproval {
+  id: number;
+  reportId: number;
+  step: 'rmg' | 'shozokucho' | 'honbu';
+  action: 'approved' | 'returned';
+  approverId?: number;
+  approverName: string;
+  comment?: string;
+  createdAt: string;
 }
 
 export interface Category {

@@ -7,7 +7,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import qrcode from 'qrcode';
-import { db, initSchema, seedIfEmpty, seedDestinations } from './db.js';
+import { db, initSchema, seedIfEmpty, seedDestinations, seedIncidentBases } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JWT_SECRET = process.env.JWT_SECRET || 'medical-inventory-secret-2024';
@@ -19,6 +19,7 @@ try {
   await initSchema();
   await seedIfEmpty(bcrypt);
   await seedDestinations();
+  await seedIncidentBases();
 } catch (e) {
   console.error('DB init error:', e.message);
 }
@@ -382,6 +383,136 @@ app.delete('/api/users/:id', auth, async (req, res) => {
       await db.saveUsers(users.filter(u => u.id !== Number(req.params.id)));
     }
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── インシデント報告 ──────────────────────────────────
+
+// 承認できる役割
+const APPROVER_ROLES = ['admin', 'honbu', 'shozokucho', 'rmg', 'mg'];
+function canSeePatient(role) { return APPROVER_ROLES.includes(role); }
+
+// 拠点一覧（匿名フォームから利用可能 - 認証不要）
+app.get('/api/incident-bases', async (req, res) => {
+  try {
+    const bases = (await db.getIncidentBases()).filter(b => b.is_active !== false);
+    res.json(bases);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 拠点管理（管理者のみ）
+app.post('/api/incident-bases', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: '権限がありません' });
+    res.json(await db.addIncidentBase(req.body));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/incident-bases/:id', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: '権限がありません' });
+    res.json(await db.updateIncidentBase(Number(req.params.id), req.body));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/incident-bases/:id', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: '権限がありません' });
+    await db.deleteIncidentBase(Number(req.params.id)); res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 報告提出（認証不要 - 匿名）
+app.post('/api/incidents', async (req, res) => {
+  try {
+    const required = ['reportType','occurrenceDate','baseName','department','patientName','situation','background','assessment','recommendation'];
+    for (const f of required) {
+      if (!req.body[f]?.trim()) return res.status(400).json({ error: `${f} は必須です` });
+    }
+    const report = await db.submitIncident(req.body);
+    res.json(report);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 一覧取得（要ログイン）
+app.get('/api/incidents', auth, async (req, res) => {
+  try {
+    if (!APPROVER_ROLES.includes(req.user.role)) return res.status(403).json({ error: '権限がありません' });
+    const incidents = await db.getIncidents(req.query);
+    // 患者名は承認者のみ見せる
+    const safe = incidents.map(r => canSeePatient(req.user.role) ? r : { ...r, patientName: '****' });
+    res.json(safe);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 統計（年別、月別）
+app.get('/api/incidents/stats', auth, async (req, res) => {
+  try {
+    if (!APPROVER_ROLES.includes(req.user.role)) return res.status(403).json({ error: '権限がありません' });
+    const year = Number(req.query.year) || new Date().getFullYear();
+    res.json(await db.getIncidentStats(year));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 詳細取得（要ログイン）
+app.get('/api/incidents/:id', auth, async (req, res) => {
+  try {
+    if (!APPROVER_ROLES.includes(req.user.role)) return res.status(403).json({ error: '権限がありません' });
+    const report = await db.getIncident(Number(req.params.id));
+    if (!report) return res.status(404).json({ error: '見つかりません' });
+    if (!canSeePatient(req.user.role)) report.patientName = '****';
+    res.json(report);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 承認・差し戻し（役割別）
+app.post('/api/incidents/:id/approve', auth, async (req, res) => {
+  try {
+    const { action, comment } = req.body; // action: 'approved' | 'returned'
+    const report = await db.getIncident(Number(req.params.id));
+    if (!report) return res.status(404).json({ error: '見つかりません' });
+
+    const role = req.user.role;
+    // どのステップで承認できるか
+    const stepMap = {
+      rmg: { allowedStatus: 'submitted', step: 'rmg' },
+      mg:  { allowedStatus: 'submitted', step: 'rmg' },
+      shozokucho: { allowedStatus: 'rmg_checked', step: 'shozokucho' },
+      honbu: { allowedStatus: 'shozokucho_checked', step: 'honbu' },
+      admin: { step: 'honbu' }, // 管理者は何でもできる
+    };
+    const config = stepMap[role];
+    if (!config) return res.status(403).json({ error: '承認権限がありません' });
+    if (role !== 'admin' && action === 'approved' && report.status !== config.allowedStatus) {
+      return res.status(400).json({ error: 'このステータスでは承認できません' });
+    }
+
+    await db.approveIncident(Number(req.params.id), config.step, {
+      action, approverId: req.user.id, approverName: req.user.name, comment,
+    });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ユーザー更新（管理者のみ）
+app.put('/api/users/:id', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: '権限がありません' });
+    const { name, role } = req.body;
+    if (process.env.DATABASE_URL) {
+      const { Pool } = await import('pg').then(m => m.default);
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      const r = await pool.query('UPDATE users SET name=$1, role=$2 WHERE id=$3 RETURNING id,username,name,role', [name, role, Number(req.params.id)]);
+      await pool.end();
+      if (!r.rows[0]) return res.status(404).json({ error: '見つかりません' });
+      res.json(r.rows[0]);
+    } else {
+      const users = await db.getUsers();
+      const i = users.findIndex(u => u.id === Number(req.params.id));
+      if (i === -1) return res.status(404).json({ error: '見つかりません' });
+      users[i] = { ...users[i], name, role };
+      await db.saveUsers(users);
+      const { password: _, ...safe } = users[i];
+      res.json(safe);
+    }
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

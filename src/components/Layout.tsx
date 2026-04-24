@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import {
   Activity, LayoutDashboard, Package, ArrowLeftRight, ClipboardList,
-  Settings, LogOut, Menu, KeyRound, X, History
+  Settings, LogOut, Menu, KeyRound, X, History, AlertTriangle
 } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../api';
@@ -14,6 +14,7 @@ const navItems = [
   { to: '/transactions', icon: ArrowLeftRight, label: '入出庫' },
   { to: '/history', icon: History, label: '履歴' },
   { to: '/stocktake', icon: ClipboardList, label: '棚卸' },
+  { to: '/incidents', icon: AlertTriangle, label: 'インシデント' },
   { to: '/master', icon: Settings, label: 'マスタ管理' },
 ];
 
@@ -119,7 +120,9 @@ export default function Layout() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-800 truncate">{user?.name}</p>
-            <p className="text-xs text-gray-400">{user?.role === 'admin' ? '管理者' : 'スタッフ'}</p>
+            <p className="text-xs text-gray-400">{
+              { admin: '管理者', honbu: '本部', shozokucho: '所属長', rmg: 'リスクMG', mg: 'マネージャー', user: 'スタッフ' }[user?.role || 'user']
+            }</p>
           </div>
         </div>
         <button onClick={() => { setShowPwModal(true); setSidebarOpen(false); }} className="flex items-center gap-2 w-full px-3 py-2 mt-1 text-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">

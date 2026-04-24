@@ -4,8 +4,9 @@ function getToken() {
   return localStorage.getItem('token');
 }
 
-async function req(method: string, path: string, body?: unknown, form?: FormData) {
-  const headers: Record<string, string> = { Authorization: `Bearer ${getToken()}` };
+async function req(method: string, path: string, body?: unknown, form?: FormData, noAuth = false) {
+  const headers: Record<string, string> = {};
+  if (!noAuth) headers['Authorization'] = `Bearer ${getToken()}`;
   if (body && !form) headers['Content-Type'] = 'application/json';
 
   const res = await fetch(`${BASE}${path}`, {
@@ -81,7 +82,24 @@ export const api = {
   // Users
   getUsers: () => req('GET', '/users'),
   addUser: (d: unknown) => req('POST', '/users', d),
+  updateUser: (id: number, d: unknown) => req('PUT', `/users/${id}`, d),
   deleteUser: (id: number) => req('DELETE', `/users/${id}`),
   changePassword: (currentPassword: string, newPassword: string) =>
     req('POST', '/auth/change-password', { currentPassword, newPassword }),
+
+  // Incident bases (拠点マスタ)
+  getIncidentBases: () => fetch('/api/incident-bases').then(r => r.json()),
+  addIncidentBase: (d: unknown) => req('POST', '/incident-bases', d),
+  updateIncidentBase: (id: number, d: unknown) => req('PUT', `/incident-bases/${id}`, d),
+  deleteIncidentBase: (id: number) => req('DELETE', `/incident-bases/${id}`),
+
+  // Incident reports
+  submitIncident: (d: unknown) => req('POST', '/incidents', d, undefined, true),
+  getIncidents: (params?: Record<string, string>) => {
+    const q = params ? '?' + new URLSearchParams(params) : '';
+    return req('GET', `/incidents${q}`);
+  },
+  getIncident: (id: number) => req('GET', `/incidents/${id}`),
+  approveIncident: (id: number, d: unknown) => req('POST', `/incidents/${id}/approve`, d),
+  getIncidentStats: (year: number) => req('GET', `/incidents/stats?year=${year}`),
 };
